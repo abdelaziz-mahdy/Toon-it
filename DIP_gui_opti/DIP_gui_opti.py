@@ -14,8 +14,6 @@ from skimage import data, io, filters
 from matplotlib.pyplot import imshow, show, subplot, title, get_cmap
 from skimage.exposure import rescale_intensity
 from skimage.filters import laplace ,sobel, roberts
-from scipy import ndimage
-from scipy.fftpack import fft , fft2 ,fftshift , ifftshift , ifft2
 from skimage.filters import gaussian
 from skimage.filters import threshold_otsu
 from skimage.color.adapt_rgb import adapt_rgb, each_channel, hsv_value
