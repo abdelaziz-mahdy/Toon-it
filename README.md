@@ -4,6 +4,13 @@ toon / cartoonize images
 in this application we wanted to make image processing faster since the cartoonize requires a lot of steps 
 
 
+## Installation
+to install the needed packages
+
+> pip install -r requirements.txt
+
+
+## Usage
 
 so you will find 3 modes of running the code 
 
