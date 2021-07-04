@@ -1,4 +1,4 @@
-import sys
+import os
 import matplotlib as plt
 from tkinter import *
 from tkinter import ttk
@@ -372,9 +372,9 @@ def removeGif():
     caned.create_image(0,0, anchor=NW, image=img)
     caned.create_image(1000,0, anchor=NE, image=img2)
 
-def SaveImg():
+def SaveImg(filename):
     files = [('Image', '*.png')]
-    file = filedialog.asksaveasfile(filetypes = files, defaultextension = files,initialfile = "cartoned")
+    file = filedialog.asksaveasfile(filetypes = files, defaultextension = files,initialfile = filename+" - Cartoned")
     #fileN = filedialog.asksaveasfile(mode='w', defaultextension=".png")
     if file:
         #im.save(file) # saves the image to the input file name. 
@@ -382,7 +382,7 @@ def SaveImg():
 
 
 
-def applyCartonize():
+def applyCartonize(imagePath):
     caned.delete("all")
     global Resimg
     global img, load, cartoned##, loading, loading2,frames  
@@ -396,17 +396,17 @@ def applyCartonize():
     rw.update()  
     if(selection() == 1):
         start_time = time.time()
-        cartoned = cartonize(cv2.imread(filename),getCartVal(),getBlurVal(),optimized=False,multicores=False) # Since most of the work done on Image is on NP Arrays and not Pillow Image 
+        cartoned = cartonize(cv2.imread(imagePath),getCartVal(),getBlurVal(),optimized=False,multicores=False) # Since most of the work done on Image is on NP Arrays and not Pillow Image 
         end_time =int(round(time.time() - start_time * 100))
         timeProc.set("%s seconds" % (time.time() - start_time))
     elif(selection()==2):
         start_time = time.time()                                                                        #object the images was opened using CV and it returns np arras
-        cartoned = cartonize(cv2.imread(filename),getCartVal(),getBlurVal(),optimized=True,multicores=False)
+        cartoned = cartonize(cv2.imread(imagePath),getCartVal(),getBlurVal(),optimized=True,multicores=False)
         end_time =int(round(time.time() - start_time * 100))
         timeProc.set("%s seconds" % (time.time() - start_time))
     else:
         start_time = time.time()
-        cartoned = cartonize(cv2.imread(filename),getCartVal(),getBlurVal(),optimized=True,multicores=True)
+        cartoned = cartonize(cv2.imread(imagePath),getCartVal(),getBlurVal(),optimized=True,multicores=True)
         end_time =int(round(time.time() - start_time * 100))
         timeProc.set("%s seconds" % (time.time() - start_time))
          
@@ -437,17 +437,19 @@ def compilingAtStartUp():
     rw.update()
 
 def openImage():
+    global filepath
     global filename
     types = ('*.png','*.jpeg','*.jpg')
     tmp = askopenfilename(filetypes=[("images",types)])##
     #if its selected
     if tmp!="":
         caned.delete("all")
-        filename=tmp
+        filepath=tmp
+        filename=os.path.splitext(os.path.basename(filepath))[0]
         global Resimg
-        Resimg = Image.open(filename)
+        Resimg = Image.open(filepath)
         Resimg = Resimg.resize((470, 520), Image.ANTIALIAS) 
-        applyCartonize()
+        applyCartonize(filepath)
 
 rw = Tk()                    # Create window
 thread_pool_executor = futures.ThreadPoolExecutor(max_workers=1) #thread queue
@@ -470,10 +472,10 @@ butn1.place(x=450,y=550)
 butn1.config(command=lambda: [thread_pool_executor.submit(openImage)]) #Once an image is selected from the file explorer the image will be cartoonized and will show the original image on the right
 butn2=Button(rw,text="Apply Cartonize", width =17)
 butn2.place(x=850,y=570)
-butn2.config(command=lambda: [thread_pool_executor.submit(applyCartonize)])
+butn2.config(command=lambda: [thread_pool_executor.submit(applyCartonize,filepath)])
 butn3 = Button(rw, text="Saved Cartonized Image", width = 17)
 butn3.place(x=850,y=600)
-butn3.config(command=lambda: [thread_pool_executor.submit(SaveImg)])
+butn3.config(command=lambda: [thread_pool_executor.submit(SaveImg,filename)])
 
 sc = Scale(rw, from_ = 1, to=25, orient=HORIZONTAL)
 sc.set(4)
