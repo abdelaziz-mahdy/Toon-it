@@ -168,27 +168,37 @@ class _CartoonizeHomePageState extends State<CartoonizeHomePage> {
     return Padding(
       padding: const EdgeInsets.all(16.0),
       child: SingleChildScrollView(
-        child: Column(
-          children: [
-            const SizedBox(height: 20),
-            _originalImage != null
-                ? Image.memory(_originalImage!, height: 200)
-                : const Text("No image selected"),
-            const SizedBox(height: 20),
-            if (_isProcessing) const CircularProgressIndicator(),
-            _cartoonImage != null
-                ? Image.memory(_cartoonImage!, height: 200)
-                : const Text("Cartoonized image will appear here"),
-            const SizedBox(height: 20),
-            _buildSliders(),
-            const SizedBox(height: 20),
-            _buildProcessStepsView(),
-            const SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: pickImage,
-              child: const Text("Pick Image"),
-            ),
-          ],
+        child: SizedBox(
+          height: 610,
+          child: Column(
+            children: [
+              const SizedBox(height: 20),
+              Wrap(
+                children: [
+                  _originalImage != null
+                      ? Image.memory(_originalImage!, height: 200)
+                      : const Text("No image selected"),
+                  const SizedBox(
+                    height: 20,
+                    width: 20,
+                  ),
+                  if (_isProcessing) const CircularProgressIndicator(),
+                  _cartoonImage != null
+                      ? Image.memory(_cartoonImage!, height: 200)
+                      : const Text("Cartoonized image will appear here"),
+                ],
+              ),
+              const SizedBox(height: 20),
+              _buildSliders(),
+              const SizedBox(height: 20),
+              _buildProcessStepsView(),
+              const SizedBox(height: 20),
+              ElevatedButton(
+                onPressed: pickImage,
+                child: const Text("Pick Image"),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -213,7 +223,7 @@ class _CartoonizeHomePageState extends State<CartoonizeHomePage> {
                 max: blurMax,
                 divisions: (blurMax - blurMin).toInt(),
                 label: _blurSigma.toString(),
-                onChanged: (value) {
+                onChanged: (value) async {
                   setState(() {
                     int blur = value.toInt();
                     if (blur % 2 == 0) {
@@ -230,7 +240,7 @@ class _CartoonizeHomePageState extends State<CartoonizeHomePage> {
                     _blurSigma = blur.toInt();
                   });
                   if (_originalImage != null) {
-                    applyCartoonize(_originalImage!);
+                    await applyCartoonize(_originalImage!);
                   }
                 },
               ),
@@ -247,7 +257,7 @@ class _CartoonizeHomePageState extends State<CartoonizeHomePage> {
                 max: thresholdMax,
                 divisions: (thresholdMax - thresholdMin).toInt(),
                 label: _thresholdValue.toString(),
-                onChanged: (value) {
+                onChanged: (value) async {
                   setState(() {
                     // Step 3: Edge Detection using Adaptive Threshold (validated blockSize)
                     int blockSize = value.toInt();
@@ -266,7 +276,7 @@ class _CartoonizeHomePageState extends State<CartoonizeHomePage> {
                     _thresholdValue = blockSize.toInt();
                   });
                   if (_originalImage != null) {
-                    applyCartoonize(_originalImage!);
+                    await applyCartoonize(_originalImage!);
                   }
                 },
               ),
@@ -277,25 +287,20 @@ class _CartoonizeHomePageState extends State<CartoonizeHomePage> {
     );
   }
 
-  // Widget to display process steps
+  // Widget to display process steps (left-to-right)
   Widget _buildProcessStepsView() {
     if (_processSteps.isEmpty) {
       return const Text("Processing steps will appear here.");
     }
 
     return SizedBox(
-      height: 200,
+      height: 100,
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
         itemCount: _processSteps.length,
         itemBuilder: (context, index) {
           return Row(
             children: [
-              if (index != 0)
-                const Icon(
-                  Icons.arrow_back,
-                  size: 30,
-                ),
               GestureDetector(
                 onTap: () {
                   _showStepDialog(_processSteps[index]);
@@ -308,6 +313,8 @@ class _CartoonizeHomePageState extends State<CartoonizeHomePage> {
                   ],
                 ),
               ),
+              if (index < _processSteps.length - 1)
+                const Icon(Icons.arrow_forward, size: 30),
             ],
           );
         },
@@ -322,14 +329,25 @@ class _CartoonizeHomePageState extends State<CartoonizeHomePage> {
       builder: (context) {
         return AlertDialog(
           title: Text(step.stepName),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
+          content: Wrap(
+            // mainAxisSize: MainAxisSize.min,
             children: [
-              const Text("Input Image:"),
-              Image.memory(step.inputImage, height: 100),
-              const SizedBox(height: 10),
-              const Text("Output Image:"),
-              Image.memory(step.outputImage, height: 100),
+              Column(
+                children: [
+                  Image.memory(step.inputImage, height: 100),
+                  const Text("Input Image"),
+                ],
+              ),
+              const SizedBox(
+                height: 10,
+                width: 10,
+              ),
+              Column(
+                children: [
+                  Image.memory(step.outputImage, height: 100),
+                  const Text("Output Image"),
+                ],
+              ),
             ],
           ),
           actions: [

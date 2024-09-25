@@ -1,16 +1,29 @@
 # flutter_toon_it
 
-A new Flutter project.
+The **flutter_toon_it** is a Flutter-based image processing application that transforms regular images into cartoonized versions using OpenCV. The app supports both dark and light modes, and users can adjust image processing parameters through interactive sliders.
 
-## Getting Started
+### Image
 
-This project is a starting point for a Flutter application.
+![Image](flutter_toon_it/image.png)
 
-A few resources to get you started if this is your first Flutter project:
+### Features:
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+- Cartoonizes images with grayscale, blurring, and edge detection techniques.
+- Sliders to adjust blur intensity and threshold values dynamically.
+- Processes image steps left-to-right with arrows indicating progress.
+- Dark mode support for a better viewing experience.
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+### Installation:
+
+1. Clone the repository.
+2. Install dependencies by running `flutter pub get`.
+3. Ensure OpenCV Dart dependencies are installed.
+4. Run the app using `flutter run`.
+
+### Usage:
+
+1. Pick an image from your gallery.
+2. Adjust the sliders to customize the cartoonization effect.
+3. View processing steps and final cartoonized image.
+
+This app is an example of combining image processing techniques with Flutter for a smooth and interactive UI.
