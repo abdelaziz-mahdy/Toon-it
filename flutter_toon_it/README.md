@@ -4,7 +4,7 @@ The **flutter_toon_it** is a Flutter-based image processing application that tra
 
 ### Image
 
-![Image](flutter_toon_it/image.png)
+![Image](image.png)
 
 ### Features:
 
