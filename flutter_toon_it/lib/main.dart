@@ -7,18 +7,46 @@ void main() {
   runApp(const CartoonizeApp());
 }
 
-class CartoonizeApp extends StatelessWidget {
+class CartoonizeApp extends StatefulWidget {
   const CartoonizeApp({super.key});
+
+  @override
+  State<CartoonizeApp> createState() => _CartoonizeAppState();
+}
+
+class _CartoonizeAppState extends State<CartoonizeApp> {
+  ThemeMode _themeMode = ThemeMode.light;
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'Cartoonize App',
-      theme: ThemeData(
-        primarySwatch: Colors.blue,
+      theme:
+          ThemeData(primarySwatch: Colors.blue, brightness: Brightness.light),
+      darkTheme:
+          ThemeData(primarySwatch: Colors.blue, brightness: Brightness.dark),
+      themeMode: _themeMode,
+      home: Scaffold(
+        appBar: AppBar(
+          title: const Text('Cartoonize Image'),
+          actions: [
+            IconButton(
+              icon: Icon(_themeMode == ThemeMode.light
+                  ? Icons.dark_mode
+                  : Icons.light_mode),
+              onPressed: () {
+                setState(() {
+                  _themeMode = _themeMode == ThemeMode.light
+                      ? ThemeMode.dark
+                      : ThemeMode.light;
+                });
+              },
+            ),
+          ],
+        ),
+        body: const CartoonizeHomePage(),
       ),
-      home: const CartoonizeHomePage(),
     );
   }
 }
@@ -33,10 +61,14 @@ class CartoonizeHomePage extends StatefulWidget {
 class _CartoonizeHomePageState extends State<CartoonizeHomePage> {
   Uint8List? _originalImage;
   Uint8List? _cartoonImage;
-  List<Uint8List> _processSteps = [];
+  List<ProcessStep> _processSteps = [];
 
   final ImagePicker _picker = ImagePicker();
   bool _isProcessing = false;
+
+  // Configuration values for sliders
+  int _blurSigma = 0;
+  int _thresholdValue = 9;
 
   // Function to pick an image from the gallery
   Future<void> pickImage() async {
@@ -56,66 +88,99 @@ class _CartoonizeHomePageState extends State<CartoonizeHomePage> {
   Future<void> applyCartoonize(Uint8List imageBytes) async {
     setState(() {
       _isProcessing = true;
+      _processSteps = [];
     });
 
-    // Decode the image to Mat format
-    final img = cv.imdecode(imageBytes, cv.IMREAD_COLOR);
+    try {
+      // Decode the image to Mat format
+      final img = await cv.imdecodeAsync(imageBytes, cv.IMREAD_COLOR);
 
-    // Step 1: Convert to Grayscale
-    final gray = cv.cvtColor(img, cv.COLOR_BGR2GRAY);
-    _addStepToProcess(gray, "Grayscale");
+      // Step 1: Convert to Grayscale
+      final gray = await cv.cvtColorAsync(img, cv.COLOR_BGR2GRAY);
+      await _addStepToProcess(gray, "Grayscale", img);
 
-    // Step 2: Apply Gaussian Blur
-    final blurred = cv.gaussianBlur(gray, (7, 7), 0);
-    _addStepToProcess(blurred, "Blurred");
+      // Step 2: Apply Gaussian Blur (only if blur sigma > 0)
+      final cv.Mat blurredGrayScaled;
+      if (_blurSigma > 0) {
+        blurredGrayScaled = await cv.medianBlurAsync(gray, _blurSigma);
+        await _addStepToProcess(blurredGrayScaled, "Blurred", gray);
+      } else {
+        blurredGrayScaled = img;
+      }
 
-    // Step 3: Edge Detection using Laplacian
-    final edges = cv.laplacian(blurred, cv.MatType.CV_8U);
-    _addStepToProcess(edges, "Edges");
+      // Step 3: Edge Detection using Adaptive Threshold (validated blockSize)
 
-    // Step 4: Threshold the edges
-    final (_, binaryEdges) = cv.threshold(edges, 80, 255, cv.THRESH_BINARY);
-    _addStepToProcess(binaryEdges, "Binary Edges");
+      final edges = await cv.adaptiveThresholdAsync(blurredGrayScaled, 255,
+          cv.ADAPTIVE_THRESH_MEAN_C, cv.THRESH_BINARY, _thresholdValue, 9);
+      await _addStepToProcess(edges, "Edges", gray);
 
-    // Step 5: Use bitwise AND to merge edges and original image
-    final cartoonized = cv.bitwiseAND(img, img, mask: binaryEdges);
-    final cartoonImageEncoded = cv.imencode(".png", cartoonized).$2;
+      // Step 4: Use bitwise AND to merge edges and original image
+      final cartoonized = await cv.bitwiseANDAsync(img, img, mask: edges);
+      final cartoonImageEncoded =
+          (await cv.imencodeAsync(".png", cartoonized)).$2;
 
-    setState(() {
-      _cartoonImage = cartoonImageEncoded;
-      _isProcessing = false;
-    });
+      setState(() {
+        _cartoonImage = cartoonImageEncoded;
+        _isProcessing = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isProcessing = false;
+      });
+      showDialog(
+        context: context,
+        builder: (context) {
+          return AlertDialog(
+            title: const Text('Error'),
+            content: Text(e.toString()),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                },
+                child: const Text('Close'),
+              ),
+            ],
+          );
+        },
+      );
+    }
   }
 
   // Helper function to add steps to the processSteps list
-  void _addStepToProcess(cv.Mat mat, String stepName) {
-    final (success, bytes) = cv.imencode(".png", mat);
-    if (success) {
+  Future<void> _addStepToProcess(
+      cv.Mat mat, String stepName, cv.Mat input) async {
+    final (success, outputBytes) = await cv.imencodeAsync(".png", mat);
+    final (successInput, inputBytes) = await cv.imencodeAsync(".png", input);
+    if (success && successInput) {
       setState(() {
-        _processSteps.add(bytes);
+        _processSteps.add(ProcessStep(
+          stepName: stepName,
+          inputImage: inputBytes,
+          outputImage: outputBytes,
+        ));
       });
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Cartoonize Image'),
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: SingleChildScrollView(
         child: Column(
           children: [
-            if (_isProcessing) const LinearProgressIndicator(),
             const SizedBox(height: 20),
             _originalImage != null
                 ? Image.memory(_originalImage!, height: 200)
                 : const Text("No image selected"),
             const SizedBox(height: 20),
+            if (_isProcessing) const CircularProgressIndicator(),
             _cartoonImage != null
                 ? Image.memory(_cartoonImage!, height: 200)
                 : const Text("Cartoonized image will appear here"),
+            const SizedBox(height: 20),
+            _buildSliders(),
             const SizedBox(height: 20),
             _buildProcessStepsView(),
             const SizedBox(height: 20),
@@ -129,6 +194,89 @@ class _CartoonizeHomePageState extends State<CartoonizeHomePage> {
     );
   }
 
+  // Widget to display the sliders for configuration
+  Widget _buildSliders() {
+    double blurMin = 0;
+    double blurMax = 100;
+    double thresholdMin = 2;
+    double thresholdMax = 52;
+
+    return Column(
+      children: [
+        Row(
+          children: [
+            const Text("Blur Sigma:"),
+            Expanded(
+              child: Slider(
+                value: _blurSigma.toDouble(),
+                min: blurMin,
+                max: blurMax,
+                divisions: (blurMax - blurMin).toInt(),
+                label: _blurSigma.toString(),
+                onChanged: (value) {
+                  setState(() {
+                    int blur = value.toInt();
+                    if (blur % 2 == 0) {
+                      if (blur < blurMax) {
+                        blur += 1;
+                      } else {
+                        blur -= 1;
+                      }
+                    }
+                    if (blur <= 0) {
+                      blur = 0;
+                    }
+
+                    _blurSigma = blur.toInt();
+                  });
+                  if (_originalImage != null) {
+                    applyCartoonize(_originalImage!);
+                  }
+                },
+              ),
+            ),
+          ],
+        ),
+        Row(
+          children: [
+            const Text("Threshold Block Size:"),
+            Expanded(
+              child: Slider(
+                value: _thresholdValue.toDouble(),
+                min: thresholdMin,
+                max: thresholdMax,
+                divisions: (thresholdMax - thresholdMin).toInt(),
+                label: _thresholdValue.toString(),
+                onChanged: (value) {
+                  setState(() {
+                    // Step 3: Edge Detection using Adaptive Threshold (validated blockSize)
+                    int blockSize = value.toInt();
+                    if (blockSize % 2 == 0) {
+                      if (blockSize < thresholdMax) {
+                        blockSize += 1; // Ensure blockSize is odd
+                      } else {
+                        blockSize -= 1;
+                      }
+                    }
+
+                    if (blockSize <= 1) {
+                      blockSize = 3; // Ensure blockSize > 1
+                    }
+
+                    _thresholdValue = blockSize.toInt();
+                  });
+                  if (_originalImage != null) {
+                    applyCartoonize(_originalImage!);
+                  }
+                },
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
   // Widget to display process steps
   Widget _buildProcessStepsView() {
     if (_processSteps.isEmpty) {
@@ -136,22 +284,77 @@ class _CartoonizeHomePageState extends State<CartoonizeHomePage> {
     }
 
     return SizedBox(
-      height: 120,
+      height: 200,
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
         itemCount: _processSteps.length,
         itemBuilder: (context, index) {
-          return Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8.0),
-            child: Column(
-              children: [
-                Image.memory(_processSteps[index], width: 80, height: 80),
-                Text("Step ${index + 1}"),
-              ],
-            ),
+          return Row(
+            children: [
+              if (index != 0)
+                const Icon(
+                  Icons.arrow_back,
+                  size: 30,
+                ),
+              GestureDetector(
+                onTap: () {
+                  _showStepDialog(_processSteps[index]);
+                },
+                child: Column(
+                  children: [
+                    Image.memory(_processSteps[index].outputImage,
+                        width: 80, height: 80),
+                    Text(_processSteps[index].stepName),
+                  ],
+                ),
+              ),
+            ],
           );
         },
       ),
     );
   }
+
+  // Function to show a dialog with step input/output details
+  void _showStepDialog(ProcessStep step) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text(step.stepName),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text("Input Image:"),
+              Image.memory(step.inputImage, height: 100),
+              const SizedBox(height: 10),
+              const Text("Output Image:"),
+              Image.memory(step.outputImage, height: 100),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              child: const Text("Close"),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+// Class to hold details of each processing step
+class ProcessStep {
+  final String stepName;
+  final Uint8List inputImage;
+  final Uint8List outputImage;
+
+  ProcessStep({
+    required this.stepName,
+    required this.inputImage,
+    required this.outputImage,
+  });
 }
